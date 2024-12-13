@@ -1,1 +1,78 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
 /.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# VSCode specific files
+.vscode/
+
+# pytest
+.cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# pyenv
+.python-version
+
+# pipenv
+*.lock
+
+# PyCharm specific files
+.idea/
+
+# FastAPI generated files (e.g., migrations, etc.)
+migrations/
+
+# Logs and database files
+*.log
+*.sqlite3
+*.db
+
+# Environment variables
+.env
+.env.*
+
+# Docker files
+docker-compose.override.yml
+.dockerignore
+
+# Python Test artifacts
+.coverage
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Local development files
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+*.DS_Store
+Thumbs.db
+
+# API documentation build files (if using tools like Sphinx)
+docs/_build/
