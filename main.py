@@ -76,14 +76,16 @@ def create_index():
                     "user": {
                         "properties": {
                             "user_id": {"type": "integer"},
-                            "name": {"type": "text"},
-                            "email": {"type": "text"}
+                            "name": {"type": "text", "fielddata" : True},
+                            "email": {"type": "text", "fielddata" : True},
+                            "age": {"type": "integer"},
+                            "gender": {"type": "text", "fielddata" : True}
                         }
                     },
                     "event_schedule": {
                         "properties": {
                             "schedule_id": {"type": "integer"},
-                            "event_name": {"type": "text"},
+                            "event_name": {"type": "text", "fielddata" : True},
                             "event_category": {"type": "keyword"}
                         }
                     },
