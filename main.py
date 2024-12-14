@@ -15,7 +15,7 @@ app = FastAPI(lifespan=lifespan)
 
 es = Elasticsearch("http://localhost:9200")
 
-DATABASE_PATH = "/Users/dahyeon/develop/event_ticket_management_system/event_ticket_management_system.db"
+DATABASE_PATH = "event_ticket_management_system.db"
 
 EVENTS_INDEX_NAME = "events"
 TICKETS_INDEX_NAME = "tickets"
