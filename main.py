@@ -4,11 +4,11 @@ from fastapi import FastAPI
 import sqlite3
 from datetime import datetime
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_index()
-    sync_data()
+    sync_event_data()
+    sync_ticket_data()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -17,12 +17,13 @@ es = Elasticsearch("http://localhost:9200")
 
 DATABASE_PATH = "/Users/dahyeon/develop/event_ticket_management_system/event_ticket_management_system.db"
 
-INDEX_NAME = "events"
-
+EVENTS_INDEX_NAME = "events"
+TICKETS_INDEX_NAME = "tickets"
 
 def create_index():
-    if not es.indices.exists(index=INDEX_NAME):
-        mapping = {
+    # 이벤트 인덱스 생성
+    if not es.indices.exists(index=EVENTS_INDEX_NAME):
+        event_mapping = {
             "mappings": {
                 "properties": {
                     "event_id": {"type": "integer"},
@@ -63,14 +64,47 @@ def create_index():
                 }
             }
         }
-        es.indices.create(index=INDEX_NAME, body=mapping)
+        es.indices.create(index=EVENTS_INDEX_NAME, body=event_mapping)
 
+    # 티켓 인덱스 생성
+    if not es.indices.exists(index=TICKETS_INDEX_NAME):
+        ticket_mapping = {
+            "mappings": {
+                "properties": {
+                    "ticket_id": {"type": "integer"},
+                    "book_date": {"type": "date"},
+                    "user": {
+                        "properties": {
+                            "user_id": {"type": "integer"},
+                            "name": {"type": "text"},
+                            "email": {"type": "text"}
+                        }
+                    },
+                    "event_schedule": {
+                        "properties": {
+                            "schedule_id": {"type": "integer"},
+                            "event_name": {"type": "text"},
+                            "event_category": {"type": "keyword"}
+                        }
+                    },
+                    "seat": {
+                        "properties": {
+                            "class": {"type": "keyword"},
+                            "price": {"type": "float"},
+                            "row_number": {"type": "keyword"},
+                            "column_number": {"type": "integer"}
+                        }
+                    }
+                }
+            }
+        }
+        es.indices.create(index=TICKETS_INDEX_NAME, body=ticket_mapping)
 
-def sync_data():
+def sync_event_data():
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
 
-    # 이벤트와 관련 데이터를 읽기
+    # 이벤트 데이터 가져오기
     event_query = '''
         SELECT
             e.id as event_id,
@@ -97,7 +131,7 @@ def sync_data():
 
         ticket_open_time = datetime.strptime(event[4], "%Y-%m-%dT%H:%M:%S.%fZ").isoformat()
 
-        # 스케줄 데이터 읽기
+        # 스케줄 데이터 가져오기
         schedule_query = '''
             SELECT
                 es.id as schedule_id,
@@ -109,7 +143,6 @@ def sync_data():
         cursor.execute(schedule_query, (event_id,))
         schedules = cursor.fetchall()
 
-        # 스케줄별 아티스트 데이터 읽기
         schedules_with_artists = []
         for schedule in schedules:
             schedule_id = schedule[0]
@@ -163,13 +196,70 @@ def sync_data():
             "schedules": schedules_with_artists
         }
 
-        # Elasticsearch에 데이터 삽입
-        es.index(index=INDEX_NAME, id=event_id, document=document)
+        es.index(index=EVENTS_INDEX_NAME, id=event_id, document=document)
 
     conn.close()
-    print("SQLite 데이터를 Elasticsearch로 동기화 완료.")
 
+def sync_ticket_data():
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
 
+    # 티켓 데이터 가져오기
+    ticket_query = '''
+        SELECT
+            t.id AS ticket_id,
+            t.book_date,
+            t.user_id,
+            u.name AS user_name,
+            u.email AS user_email,
+            es.id AS schedule_id,
+            e.name AS event_name,
+            e.category AS event_category,
+            ss.class AS seat_class,
+            ss.price AS seat_price,
+            ss.row_number,
+            ss.column_number
+        FROM Ticket t
+        LEFT JOIN User u ON t.user_id = u.id
+        LEFT JOIN EventSchedule es ON t.event_schedule_id = es.id
+        LEFT JOIN Event e ON es.event_id = e.id
+        LEFT JOIN SeatSection ss ON t.section_id = ss.id
+    '''
+    cursor.execute(ticket_query)
+    tickets = cursor.fetchall()
+
+    for ticket in tickets:
+        ticket_id = ticket[0]
+        try:
+            book_date = datetime.strptime(ticket[1], "%Y-%m-%d %H:%M:%S").isoformat()
+        except ValueError:
+            book_date = datetime.strptime(ticket[1], "%Y-%m-%d").isoformat()
+
+        # Elasticsearch 티켓 문서 생성
+        ticket_document = {
+            "ticket_id": ticket_id,
+            "book_date": book_date,
+            "user": {
+                "user_id": ticket[2],
+                "name": ticket[3],
+                "email": ticket[4]
+            },
+            "event_schedule": {
+                "schedule_id": ticket[5],
+                "event_name": ticket[6],
+                "event_category": ticket[7]
+            },
+            "seat": {
+                "class": ticket[8],
+                "price": ticket[9],
+                "row_number": ticket[10],
+                "column_number": ticket[11]
+            }
+        }
+
+        es.index(index=TICKETS_INDEX_NAME, id=ticket_id, document=ticket_document)
+
+    conn.close()
 
 @app.get("/search/")
 async def search_events(query: str, field: str = "name"):
@@ -180,5 +270,5 @@ async def search_events(query: str, field: str = "name"):
             }
         }
     }
-    response = es.search(index=INDEX_NAME, body=search_query)
+    response = es.search(index=EVENTS_INDEX_NAME, body=search_query)
     return {"results": response["hits"]["hits"]}
